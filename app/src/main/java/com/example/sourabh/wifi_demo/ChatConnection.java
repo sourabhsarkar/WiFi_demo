@@ -62,9 +62,9 @@ public class ChatConnection {
         Log.e(TAG, "Updating message: " + msg);
 
         if (local) {
-            msg = "me: " + msg;
+            msg = "sent: " + msg;
         } else {
-            msg = "them: " + msg;
+            msg = "received: " + msg;
         }
 
         Bundle messageBundle = new Bundle();

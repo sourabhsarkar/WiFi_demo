@@ -10,6 +10,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class NsdChatActivity extends Activity {
 
@@ -47,6 +48,7 @@ public class NsdChatActivity extends Activity {
             mNsdHelper.registerService(mConnection.getLocalPort());
         } else {
             Log.d(TAG, "ServerSocket isn't bound.");
+            Toast.makeText(this, "ServerSocket isn't bound",Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -62,6 +64,7 @@ public class NsdChatActivity extends Activity {
                     service.getPort());
         } else {
             Log.d(TAG, "No service to connect to!");
+            Toast.makeText(this, "No service to connect to!",Toast.LENGTH_SHORT).show();
         }
     }
 
