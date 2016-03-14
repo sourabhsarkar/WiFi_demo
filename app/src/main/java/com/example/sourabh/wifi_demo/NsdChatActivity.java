@@ -17,6 +17,7 @@ import java.net.Socket;
 
 public class NsdChatActivity extends Activity {
 
+    //susobhan roy
     NsdHelper mNsdHelper;
     View v;
 
