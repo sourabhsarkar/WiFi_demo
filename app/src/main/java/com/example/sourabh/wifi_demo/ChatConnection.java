@@ -14,38 +14,45 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 public class ChatConnection {
 
     private Handler mUpdateHandler;
     private ChatServer mChatServer;
-    private ChatClient mChatClient;
+    ArrayList<CommonChat> chatClients = new ArrayList<CommonChat>();
 
     private static final String TAG = "ChatConnection";
 
-    private Socket mSocket;
     private int mPort = -1;
 
     public ChatConnection(Handler handler) {
         mUpdateHandler = handler;
-        mChatServer = new ChatServer(handler);
-    }
-
-    public void tearDown() {
-        mChatServer.tearDown();
-        if (mChatClient != null) {
-            mChatClient.tearDown();
+        //if the user is a server create the server socket
+        if(NsdChatActivity.mUserChoice.equals("server")) {
+            mChatServer = new ChatServer();
         }
     }
 
-    public void connectToServer(InetAddress address, int port) {
-        mChatClient = new ChatClient(address, port);
+    public void tearDown() {
+        if(mChatServer!=null)
+            mChatServer.tearDown();
+        for (CommonChat chatClient : chatClients) {
+            chatClient.tearDown();
+        }
     }
 
+    //Creating and storing CommonChat objects
+    public void commonConnection(InetAddress address, int port, Socket s) {
+        CommonChat mChatClient = new CommonChat(address, port, s);
+        chatClients.add(mChatClient);
+    }
+
+    
     public void sendMessage(String msg) {
-        if (mChatClient != null) {
-            mChatClient.sendMessage(msg);
+        for (CommonChat chatClient : chatClients) {
+            chatClient.sendMessage(msg);
         }
     }
 
@@ -76,39 +83,63 @@ public class ChatConnection {
 
     }
 
-    private synchronized void setSocket(Socket socket) {
-        Log.d(TAG, "setSocket being called.");
-        if (socket == null) {
-            Log.d(TAG, "Setting a null socket.");
+    private class ChatServer {
+
+        ArrayList<ServerThread> serverThreads = new ArrayList<ServerThread>();
+        ServerSocket mServerSocket = null;
+        //Thread mThread = null;
+
+        //Creating the thread for chat
+        public ChatServer() {
+            new ThreadHandler().start();
         }
-        if (mSocket != null) {
-            if (mSocket.isConnected()) {
+
+        public class ThreadHandler extends Thread
+        {
+            @Override
+            public void run() {
+                Socket sv_soc= null;
+
+                // Since discovery will happen via Nsd, we don't need to care which port is
+                // used.  Just grab an available one  and advertise it via Nsd.
                 try {
-                    mSocket.close();
+                    //Creating server socket
+                    mServerSocket = new ServerSocket(0);
+                    setLocalPort(mServerSocket.getLocalPort());
+                    Log.d(TAG, "ServerSocket Created, awaiting connection");
                 } catch (IOException e) {
-                    // TODO(alexlucas): Auto-generated catch block
+                    Log.e(TAG, "Error creating ServerSocket: ", e);
                     e.printStackTrace();
                 }
+                while(true) {
+                    try {
+                        //Accepting client
+                        sv_soc = mServerSocket.accept();
+                        Log.d(TAG, "Connected..." + sv_soc.getInetAddress() + " " + sv_soc.getPort());
+                    } catch (IOException e) {
+                        Log.e(TAG, "Exception caught!", e);
+                    }
+                    //Starting thread for each client
+                    if (sv_soc != null) {
+                        ServerThread sv_thread = new ServerThread(sv_soc);
+                        serverThreads.add(sv_thread);
+                        sv_thread.t.start();
+                    }
+                }
             }
-        }
-        mSocket = socket;
-    }
-
-    private Socket getSocket() {
-        return mSocket;
-    }
-
-    private class ChatServer {
-        ServerSocket mServerSocket = null;
-        Thread mThread = null;
-
-        public ChatServer(Handler handler) {
-            mThread = new Thread(new ServerThread());
-            mThread.start();
+            /*
+            public void doSomethingOnAllThreads() {
+                for (ServerThread serverThread : serverThreads) {
+                    serverThread.otherMethod();
+                }
+            }
+            */
         }
 
         public void tearDown() {
-            mThread.interrupt();
+            //interrupt all server threads
+            for (ServerThread serverThread : serverThreads)
+                serverThread.t.interrupt();
             try {
                 mServerSocket.close();
             } catch (IOException ioe) {
@@ -117,54 +148,56 @@ public class ChatConnection {
         }
 
         class ServerThread implements Runnable {
-
+            Socket sv_soc;
+            Thread t;
+            public ServerThread(Socket s) {
+                sv_soc = s;
+                t=new Thread(this);
+            }
             @Override
             public void run() {
-
-                try {
-                    // Since discovery will happen via Nsd, we don't need to care which port is
-                    // used.  Just grab an available one  and advertise it via Nsd.
-                    mServerSocket = new ServerSocket(0);
-                    setLocalPort(mServerSocket.getLocalPort());
-
-                    while (!Thread.currentThread().isInterrupted()) {
-                        Log.d(TAG, "ServerSocket Created, awaiting connection");
-                        setSocket(mServerSocket.accept());
-                        Log.d(TAG, "Connected.");
-                        if (mChatClient == null) {
-                            int port = mSocket.getPort();
-                            InetAddress address = mSocket.getInetAddress();
-                            connectToServer(address, port);
-                        }
-                    }
-                } catch (IOException e) {
-                    Log.e(TAG, "Error creating ServerSocket: ", e);
-                    e.printStackTrace();
-                }
+                //setSocket(sv_soc);
+                //if (mChatClient == null) {
+                int port = sv_soc.getPort();
+                InetAddress address = sv_soc.getInetAddress();
+                Log.d(TAG, "commonConnection being called from ServerThread!");
+                commonConnection(address, port, sv_soc);
+                //}
             }
+            /*
+            @Override
+            public void finalize() throws Throwable {
+                Log.d(TAG, "Finalize");
+                super.finalize();
+            }
+            */
         }
     }
 
-    private class ChatClient {
+    private class CommonChat {
 
         private InetAddress mAddress;
         private int PORT;
 
-        private final String CLIENT_TAG = "ChatClient";
+        private final String CLIENT_TAG = "CommonChat";
 
         private Thread mSendThread;
         private Thread mRecThread;
+        Socket sv_soc = null;
 
-        public ChatClient(InetAddress address, int port) {
+        //Function to handle the chatting
+        public CommonChat(InetAddress address, int port, Socket s) {
 
             Log.d(CLIENT_TAG, "Creating chatClient");
-            this.mAddress = address;
-            this.PORT = port;
+            mAddress = address;
+            PORT = port;
+            sv_soc = s;
 
             mSendThread = new Thread(new SendingThread());
             mSendThread.start();
         }
 
+        //Sending Thread
         class SendingThread implements Runnable {
 
             BlockingQueue<String> mMessageQueue;
@@ -177,22 +210,21 @@ public class ChatConnection {
             @Override
             public void run() {
                 try {
-                    if (getSocket() == null) {
-                        setSocket(new Socket(mAddress, PORT));
+                    //Log.d(TAG, mAddress + " " + PORT);
+                    if(NsdChatActivity.mUserChoice.equals("client")) {
+                        //Creating Client socket
+                        sv_soc = new Socket(mAddress, PORT);
                         Log.d(CLIENT_TAG, "Client-side socket initialized.");
-
-                    } else {
+                    }
+                    else {
                         Log.d(CLIENT_TAG, "Socket already initialized. skipping!");
                     }
-
-                    mRecThread = new Thread(new ReceivingThread());
-                    mRecThread.start();
-
-                } catch (UnknownHostException e) {
-                    Log.d(CLIENT_TAG, "Initializing socket failed, UHE", e);
                 } catch (IOException e) {
-                    Log.d(CLIENT_TAG, "Initializing socket failed, IOE.", e);
+                    Log.e(TAG, "Unable to initialize Client-side socket!", e);
+                    e.printStackTrace();
                 }
+                mRecThread = new Thread(new ReceivingThread());
+                mRecThread.start();
 
                 while (true) {
                     try {
@@ -205,6 +237,7 @@ public class ChatConnection {
             }
         }
 
+        //Receiving Thread
         class ReceivingThread implements Runnable {
 
             @Override
@@ -213,21 +246,20 @@ public class ChatConnection {
                 BufferedReader input;
                 try {
                     input = new BufferedReader(new InputStreamReader(
-                            mSocket.getInputStream()));
+                            sv_soc.getInputStream()));
                     while (!Thread.currentThread().isInterrupted()) {
-
                         String messageStr = null;
                         messageStr = input.readLine();
                         if (messageStr != null) {
                             Log.d(CLIENT_TAG, "Read from the stream: " + messageStr);
+                            if(messageStr.equals("end")){
+                                Log.d(CLIENT_TAG, "The end!");
+                                break;
+                            }
                             updateMessages(messageStr, false);
-                        } else {
-                            Log.d(CLIENT_TAG, "The nulls! The nulls!");
-                            break;
                         }
                     }
                     input.close();
-
                 } catch (IOException e) {
                     Log.e(CLIENT_TAG, "Server loop error: ", e);
                 }
@@ -236,7 +268,7 @@ public class ChatConnection {
 
         public void tearDown() {
             try {
-                getSocket().close();
+                sv_soc.close();
             } catch (IOException ioe) {
                 Log.e(CLIENT_TAG, "Error when closing server socket.");
             }
@@ -244,16 +276,15 @@ public class ChatConnection {
 
         public void sendMessage(String msg) {
             try {
-                Socket socket = getSocket();
-                if (socket == null) {
-                    Log.d(CLIENT_TAG, "Socket is null, wtf?");
-                } else if (socket.getOutputStream() == null) {
-                    Log.d(CLIENT_TAG, "Socket output stream is null, wtf?");
+                if (sv_soc == null) {
+                    Log.d(CLIENT_TAG, "Socket is null!");
+                } else if (sv_soc.getOutputStream() == null) {
+                    Log.d(CLIENT_TAG, "Socket output stream is null!");
                 }
 
                 PrintWriter out = new PrintWriter(
                         new BufferedWriter(
-                                new OutputStreamWriter(getSocket().getOutputStream())), true);
+                                new OutputStreamWriter(sv_soc.getOutputStream())), true);
                 out.println(msg);
                 out.flush();
                 updateMessages(msg, true);

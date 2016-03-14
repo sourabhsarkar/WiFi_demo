@@ -40,7 +40,7 @@ public class NsdHelper {
             @Override
             public void onDiscoveryStarted(String regType) {
                 Log.d(TAG, "Service discovery started");
-                Toast.makeText(mContext, "discovery started", Toast.LENGTH_SHORT).show();
+                Toast.makeText(mContext, "Discovery started", Toast.LENGTH_SHORT).show();
             }
 
             @Override
@@ -110,6 +110,7 @@ public class NsdHelper {
         };
     }
 
+    //Detect the success or failure of service registration and un registration
     public void initializeRegistrationListener() {
         mRegistrationListener = new NsdManager.RegistrationListener() {
 
@@ -143,6 +144,7 @@ public class NsdHelper {
         };
     }
 
+    //Registering the service on the local network
     public void registerService(int port) {
         tearDown();  // Cancel any previous registration request
         initializeRegistrationListener();
@@ -150,7 +152,7 @@ public class NsdHelper {
         serviceInfo.setPort(port);
         serviceInfo.setServiceName(mServiceName);
         serviceInfo.setServiceType(SERVICE_TYPE);
-
+        Toast.makeText(mContext, "Service registered at port: " + port,Toast.LENGTH_SHORT).show();
         mNsdManager.registerService(
                 serviceInfo, NsdManager.PROTOCOL_DNS_SD, mRegistrationListener);
 

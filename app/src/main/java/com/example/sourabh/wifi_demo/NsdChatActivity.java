@@ -8,18 +8,23 @@ import android.os.Message;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.net.Socket;
+
 public class NsdChatActivity extends Activity {
 
     NsdHelper mNsdHelper;
+    View v;
 
     private TextView mStatusView;
     private Handler mUpdateHandler;
 
     public static final String TAG = "NsdChat";
+    public static String mUserChoice;
 
     ChatConnection mConnection;
 
@@ -29,6 +34,22 @@ public class NsdChatActivity extends Activity {
         super.onCreate(savedInstanceState);
         Log.d(TAG, "Creating chat activity");
         setContentView(R.layout.main);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        //Checking if the user's role
+
+        mUserChoice =getIntent().getStringExtra("flag");
+        if(mUserChoice.equals("server")) {
+            v = findViewById(R.id.discover_btn);
+            v.setVisibility(View.GONE);
+            v = findViewById(R.id.connect_btn);
+            v.setVisibility(View.GONE);
+        }
+        else if(mUserChoice.equals("client")) {
+            v = findViewById(R.id.advertise_btn);
+            v.setVisibility(View.GONE);
+        }
+
         mStatusView = (TextView) findViewById(R.id.status);
         mStatusView.setMovementMethod(new ScrollingMovementMethod());
 
@@ -42,6 +63,7 @@ public class NsdChatActivity extends Activity {
 
     }
 
+    //Initiating service registration
     public void clickAdvertise(View v) {
         // Register service
         if(mConnection.getLocalPort() > -1) {
@@ -52,16 +74,19 @@ public class NsdChatActivity extends Activity {
         }
     }
 
+    //Initiating service discovery
     public void clickDiscover(View v) {
         mNsdHelper.discoverServices();
     }
 
+    //Initializing client connectivity to the service
     public void clickConnect(View v) {
         NsdServiceInfo service = mNsdHelper.getChosenServiceInfo();
         if (service != null) {
-            Log.d(TAG, "Connecting.");
-            mConnection.connectToServer(service.getHost(),
-                    service.getPort());
+            Log.d(TAG, "Connecting...");
+            Toast.makeText(this, "Connecting...",Toast.LENGTH_SHORT).show();
+            Socket s = null;
+            mConnection.commonConnection(service.getHost(), service.getPort(), s);
         } else {
             Log.d(TAG, "No service to connect to!");
             Toast.makeText(this, "No service to connect to!",Toast.LENGTH_SHORT).show();
@@ -86,8 +111,8 @@ public class NsdChatActivity extends Activity {
     @Override
     protected void onStart() {
         Log.d(TAG, "Starting.");
+        //creating an object of the ChatConnection class
         mConnection = new ChatConnection(mUpdateHandler);
-
         mNsdHelper = new NsdHelper(this);
         mNsdHelper.initializeNsd();
         super.onStart();
@@ -98,7 +123,7 @@ public class NsdChatActivity extends Activity {
     protected void onPause() {
         Log.d(TAG, "Pausing.");
         if (mNsdHelper != null) {
-            mNsdHelper.stopDiscovery();
+            //mNsdHelper.stopDiscovery();
         }
         super.onPause();
     }
@@ -107,8 +132,8 @@ public class NsdChatActivity extends Activity {
     protected void onResume() {
         Log.d(TAG, "Resuming.");
         super.onResume();
-        if (mNsdHelper != null) {
-            mNsdHelper.discoverServices();
+        if (mNsdHelper != null && !NsdHelper.flag) {
+            //mNsdHelper.discoverServices();
         }
     }
 
