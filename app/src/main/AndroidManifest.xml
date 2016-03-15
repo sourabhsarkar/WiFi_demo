@@ -14,16 +14,21 @@
         android:theme="@android:style/Theme.DeviceDefault">
         <activity
             android:name=".NsdChatActivity"
+            android:theme="@android:style/Theme.DeviceDefault" />
+        <activity
+            android:name=".WifiLandingPage"
             android:theme="@android:style/Theme.DeviceDefault">
-        </activity>
-        <activity android:name=".WifiLandingPage"
-            android:theme="@android:style/Theme.DeviceDefault">>
+            >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".Contest_Creation" />
+        <activity android:name=".Contest_Upload" />
+        <activity android:name=".Join_Contest" />
+        <activity android:name=".Participant_details"></activity>
     </application>
 
 </manifest>
