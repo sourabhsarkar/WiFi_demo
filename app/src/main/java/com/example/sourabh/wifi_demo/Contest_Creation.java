@@ -27,7 +27,7 @@ public class Contest_Creation extends Activity {
     }
 
     public void con_create_click(View v){
-        
+
         if(con_name.getText()== null || con_password.getText()== null|| con_details.getText()==null){
             Toast.makeText(this,"One or more fields is empty",Toast.LENGTH_LONG).show();
         }
